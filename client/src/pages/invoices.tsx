@@ -24,8 +24,8 @@ export default function Invoices() {
       invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       invoice.vendorName.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesStatus = !statusFilter || invoice.status === statusFilter;
-    const matchesSource = !sourceFilter || invoice.source === sourceFilter;
+    const matchesStatus = statusFilter === "all" || invoice.status === statusFilter;
+    const matchesSource = sourceFilter === "all" || invoice.source === sourceFilter;
     
     return matchesSearch && matchesStatus && matchesSource;
   });

@@ -13,8 +13,8 @@ import { Invoice } from "@/types";
 
 export default function ReviewHistory() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("all");
   const { user } = useAuth();
 
   const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
@@ -34,10 +34,10 @@ export default function ReviewHistory() {
       invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       invoice.vendorName.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesStatus = !statusFilter || invoice.status === statusFilter;
+    const matchesStatus = statusFilter === "all" || invoice.status === statusFilter;
     
     let matchesDate = true;
-    if (dateFilter) {
+    if (dateFilter !== "all") {
       const today = new Date();
       const invoiceDate = new Date(invoice.updatedAt);
       
