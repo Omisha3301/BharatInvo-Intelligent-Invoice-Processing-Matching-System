@@ -22,12 +22,12 @@ Our invoice processing system is built with modularity, reliability, and scalabi
 
 ###  End-to-End Workflow
 
-1. ** Invoice Ingestion**
+1. **Invoice Ingestion**
    - Invoices enter the system through two primary methods:
      - **Manual Upload**: Admins or bookkeepers upload invoices directly via the user interface.
      - **Automated Desktop Agent**: A background script checks designated email inboxes periodically, auto-fetches invoice files (PDFs or images), and pushes them into the internal processing queue.
 
-2. ** Preprocessing & OCR (Optical Character Recognition)**
+2. **Preprocessing & OCR (Optical Character Recognition)**
    - Files are preprocessed to improve quality.
    - Initially, Tesseract was used but due to limitations with poor layouts or image clarity, we upgraded to **Mistral**, a context-aware GenAI OCR engine.
    - Mistral extracts key data points such as:
@@ -36,11 +36,11 @@ Our invoice processing system is built with modularity, reliability, and scalabi
      - Line Items
      - Subtotal, Taxes, and Grand Total
 
-3. ** GenAI-Based Structuring**
+3. **GenAI-Based Structuring**
    - Raw text output from OCR is semi-structured and inconsistent.
    - A GenAI model further processes the text and maps it into a consistent **JSON structure**, even when invoices don’t follow standard formats or have missing tables.
 
-4. ** 3-Way Matching Engine**
+4. **3-Way Matching Engine**
    - The structured invoice data is validated against:
      - **Purchase Order (PO)**
      - **Goods Receipt Note (GRN)**
@@ -49,7 +49,7 @@ Our invoice processing system is built with modularity, reliability, and scalabi
      - Quantity verification
      - Vendor and PO alignment
 
-5. ** Human-in-the-Loop (HITL)**
+5. **Human-in-the-Loop (HITL)**
    - If any mismatches occur or the confidence score is below a threshold:
      - A human reviewer is notified through the **Review Dashboard**.
      - Reviewers can correct fields, accept or reject entries, and provide remarks.
@@ -126,7 +126,7 @@ Our invoice processing system is built with modularity, reliability, and scalabi
 
 ---
 
-## 🛠Future Improvements
+## Future Improvements
 
 - Add digital signature verification on PDFs
 - Integrate GST verification API
