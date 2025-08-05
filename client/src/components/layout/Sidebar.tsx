@@ -23,6 +23,7 @@ const navigation = [
   { name: "Review History", href: "/review-history", icon: History, roles: ["admin", "hod", "bookkeeper"] },
   { name: "User Management", href: "/users", icon: Users, roles: ["admin"] },
   { name: "Payments", href: "/payments", icon: CreditCard, roles: ["hod"] },
+  { name: "Matching Table", href: "/purchase-deliveries", icon: CreditCard, roles: ["admin"] },
 ];
 
 export function Sidebar() {

@@ -153,7 +153,7 @@ export default function Invoices() {
                       <TableHead>Date</TableHead>
                       <TableHead>Source</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
+                      {/* <TableHead>Actions</TableHead> */}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -163,7 +163,7 @@ export default function Invoices() {
                           {invoice.invoiceNumber}
                         </TableCell>
                         <TableCell>{invoice.vendorName}</TableCell>
-                        <TableCell>{formatCurrency(invoice.amount)}</TableCell>
+                        <TableCell>{formatCurrency(invoice.totalAmount)}</TableCell>
                         <TableCell className="text-gray-600 dark:text-gray-400">
                           {formatDate(invoice.invoiceDate)}
                         </TableCell>
@@ -178,19 +178,19 @@ export default function Invoices() {
                             {invoice.status}
                           </Badge>
                         </TableCell>
-                        <TableCell>
+                        {/* <TableCell>
                           <div className="flex space-x-2">
                             <Button variant="ghost" size="sm">
                               <Eye className="w-4 h-4" />
                             </Button>
                             <Button variant="ghost" size="sm">
                               <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700">
+                            </Button> */}
+                            {/* <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700">
                               <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
+                            </Button> */}
+                          {/* </div>
+                        </TableCell> */}
                       </TableRow>
                     ))}
                   </TableBody>

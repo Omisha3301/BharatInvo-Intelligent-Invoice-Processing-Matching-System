@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,41 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { User2, Bell, Globe, Palette, Shield } from "lucide-react";
+
+// Utility function to convert audit logs to CSV
+const generateAuditLogCSV = (logs: any[]): string => {
+  const headers = ["ID", "User ID", "Action", "Entity Type", "Entity ID", "Details", "Timestamp"];
+  const escapeCsvField = (field: any): string => {
+    if (field === null || field === undefined) return "";
+    const str = String(field).replace(/"/g, '""');
+    return `"${str}"`;
+  };
+
+  const rows = logs.map(log => [
+    escapeCsvField(log.id),
+    escapeCsvField(log.userId),
+    escapeCsvField(log.action),
+    escapeCsvField(log.entityType),
+    escapeCsvField(log.entityId),
+    escapeCsvField(JSON.stringify(log.details)),
+    escapeCsvField(log.timestamp ? new Date(log.timestamp).toISOString() : ""),
+  ].join(","));
+
+  return [headers.join(","), ...rows].join("\n");
+};
+
+// Utility function to trigger CSV download
+const downloadCSV = (csvContent: string, fileName: string) => {
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.setAttribute("href", url);
+  link.setAttribute("download", fileName);
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
 
 export default function Settings() {
   const { user } = useAuth();
@@ -26,20 +61,57 @@ export default function Settings() {
 
   const [preferences, setPreferences] = useState({
     emailNotifications: true,
-    autoApprove: false,
     language: "en",
     timezone: "ist",
     theme: "light",
   });
 
-  const updateProfileMutation = useMutation({
-    mutationFn: async (profileData: any) => {
-      if (!user) throw new Error('User not found');
-      const response = await apiRequest('PATCH', `/api/users/${user.id}`, profileData);
+  const { data: settings, isLoading: isSettingsLoading } = useQuery({
+    queryKey: ["/api/settings/auto-approve"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/settings/auto-approve");
+      return response.json();
+    },
+  });
+
+  const { data: auditLogs, isLoading: isAuditLogsLoading } = useQuery({
+    queryKey: ["/api/audit-logs"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/audit-logs");
+      return response.json();
+    },
+    enabled: user?.role === "admin",
+  });
+
+  const updateAutoApproveMutation = useMutation({
+    mutationFn: async (autoApprove: boolean) => {
+      const response = await apiRequest("PATCH", "/api/settings/auto-approve", { autoApprove });
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/auto-approve"] });
+      toast({
+        title: "Success",
+        description: "Auto-approve setting updated successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update auto-approve setting",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateProfileMutation = useMutation({
+    mutationFn: async (profileData: any) => {
+      if (!user) throw new Error("User not found");
+      const response = await apiRequest("PATCH", `/api/users/${user.id}`, profileData);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({
         title: "Success",
         description: "Profile updated successfully",
@@ -60,17 +132,36 @@ export default function Settings() {
   };
 
   const handlePreferenceChange = (key: string, value: any) => {
-    setPreferences(prev => ({ ...prev, [key]: value }));
-    
-    // Save to localStorage for client-side preferences
-    localStorage.setItem('userPreferences', JSON.stringify({
-      ...preferences,
-      [key]: value
-    }));
-    
+    setPreferences((prev) => ({ ...prev, [key]: value }));
+    localStorage.setItem(
+      "userPreferences",
+      JSON.stringify({
+        ...preferences,
+        [key]: value,
+      })
+    );
     toast({
       title: "Preference Updated",
       description: "Your preference has been saved",
+    });
+  };
+
+  const handleDownloadAuditLogs = () => {
+    if (!auditLogs || auditLogs.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No audit logs available to download",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const csvContent = generateAuditLogCSV(auditLogs);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    downloadCSV(csvContent, `audit-logs-${timestamp}.csv`);
+    toast({
+      title: "Success",
+      description: "Audit logs downloaded as CSV",
     });
   };
 
@@ -79,7 +170,6 @@ export default function Settings() {
   return (
     <DashboardLayout>
       <div className="p-8 space-y-8">
-        {/* Header */}
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
@@ -88,8 +178,8 @@ export default function Settings() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Profile Settings */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Profile Settings */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
@@ -119,7 +209,6 @@ export default function Settings() {
                       />
                     </div>
                   </div>
-                  
                   <div>
                     <Label htmlFor="email">Email Address</Label>
                     <Input
@@ -130,7 +219,6 @@ export default function Settings() {
                       placeholder="Enter your email"
                     />
                   </div>
-                  
                   <div>
                     <Label htmlFor="role">Role</Label>
                     <Input
@@ -143,9 +231,8 @@ export default function Settings() {
                       Contact your administrator to change your role.
                     </p>
                   </div>
-                  
-                  <Button 
-                    type="submit" 
+                  <Button
+                    type="submit"
                     disabled={updateProfileMutation.isPending}
                     className="w-full md:w-auto"
                   >
@@ -175,26 +262,27 @@ export default function Settings() {
                   </div>
                   <Switch
                     checked={preferences.emailNotifications}
-                    onCheckedChange={(checked) => handlePreferenceChange('emailNotifications', checked)}
+                    onCheckedChange={(checked) => handlePreferenceChange("emailNotifications", checked)}
                   />
                 </div>
-                
                 <Separator />
-                
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                      Auto-approve matched invoices
-                    </p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">
-                      Automatically approve 100% matches
-                    </p>
+                {user.role === "admin" && (
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        Auto-approve matched invoices
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Automatically approve 100% matches (applies to all users)
+                      </p>
+                    </div>
+                    <Switch
+                      checked={settings?.autoApprove || false}
+                      onCheckedChange={(checked) => updateAutoApproveMutation.mutate(checked)}
+                      disabled={isSettingsLoading || updateAutoApproveMutation.isPending}
+                    />
                   </div>
-                  <Switch
-                    checked={preferences.autoApprove}
-                    onCheckedChange={(checked) => handlePreferenceChange('autoApprove', checked)}
-                  />
-                </div>
+                )}
               </CardContent>
             </Card>
 
@@ -209,9 +297,9 @@ export default function Settings() {
               <CardContent className="space-y-6">
                 <div>
                   <Label htmlFor="language">Language</Label>
-                  <Select 
+                  <Select
                     value={preferences.language}
-                    onValueChange={(value) => handlePreferenceChange('language', value)}
+                    onValueChange={(value) => handlePreferenceChange("language", value)}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -222,12 +310,11 @@ export default function Settings() {
                     </SelectContent>
                   </Select>
                 </div>
-                
                 <div>
                   <Label htmlFor="timezone">Timezone</Label>
-                  <Select 
+                  <Select
                     value={preferences.timezone}
-                    onValueChange={(value) => handlePreferenceChange('timezone', value)}
+                    onValueChange={(value) => handlePreferenceChange("timezone", value)}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -244,7 +331,6 @@ export default function Settings() {
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Account Information */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
@@ -255,37 +341,31 @@ export default function Settings() {
               <CardContent className="space-y-4">
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Account ID</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">#{user.id.toString().padStart(6, '0')}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">#{user.id.toString().padStart(6, "0")}</p>
                 </div>
-                
                 <Separator />
-                
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Member Since</p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {new Date(user.createdAt).toLocaleDateString('en-IN', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
+                    {new Date(user.createdAt).toLocaleDateString("en-IN", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
                     })}
                   </p>
                 </div>
-                
                 <Separator />
-                
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Last Login</p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {user.lastLogin 
-                      ? new Date(user.lastLogin).toLocaleDateString('en-IN')
-                      : 'Never'
-                    }
+                    {user.lastLogin
+                      ? new Date(user.lastLogin).toLocaleDateString("en-IN")
+                      : "Never"}
                   </p>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Appearance Settings */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
@@ -296,9 +376,9 @@ export default function Settings() {
               <CardContent className="space-y-4">
                 <div>
                   <Label htmlFor="theme">Theme</Label>
-                  <Select 
+                  <Select
                     value={preferences.theme}
-                    onValueChange={(value) => handlePreferenceChange('theme', value)}
+                    onValueChange={(value) => handlePreferenceChange("theme", value)}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -310,14 +390,12 @@ export default function Settings() {
                     </SelectContent>
                   </Select>
                 </div>
-                
                 <p className="text-xs text-gray-600 dark:text-gray-400">
                   Choose your preferred color scheme for the application.
                 </p>
               </CardContent>
             </Card>
 
-            {/* Quick Actions */}
             <Card>
               <CardHeader>
                 <CardTitle>Quick Actions</CardTitle>
@@ -326,8 +404,13 @@ export default function Settings() {
                 <Button variant="outline" className="w-full justify-start" disabled>
                   Change Password
                 </Button>
-                <Button variant="outline" className="w-full justify-start" disabled>
-                  Download Data
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={handleDownloadAuditLogs}
+                  disabled={user.role !== "admin" || isAuditLogsLoading || !auditLogs}
+                >
+                  {isAuditLogsLoading ? "Loading..." : "Download Audit Logs"}
                 </Button>
                 <Button variant="outline" className="w-full justify-start text-red-600 hover:text-red-700" disabled>
                   Delete Account

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,12 +10,40 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { CreditCard, Clock, CheckCircle, TrendingUp, Eye } from "lucide-react";
 import { Invoice } from "@/types";
+import { Payment } from "@/types";
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
+
+export function useRazorpayScript() {
+  useEffect(() => {
+    // Prevent duplicate injection
+    if (document.getElementById("razorpay-checkout-js")) return;
+
+    const script = document.createElement("script");
+    script.id = "razorpay-checkout-js";
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+
+    script.onload = () => {
+      console.log("Razorpay script loaded");
+    };
+
+    script.onerror = () => {
+      console.error("Failed to load Razorpay script");
+    };
+
+    document.body.appendChild(script);
+  }, []);
+}
 
 export default function Payments() {
   const [selectedInvoices, setSelectedInvoices] = useState<Set<number>>(new Set());
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
+  useRazorpayScript();
   // Get approved invoices that are ready for payment
   const { data: paymentQueue = [], isLoading } = useQuery<Invoice[]>({
     queryKey: ['/api/invoices', { status: 'approved' }],
@@ -30,6 +58,8 @@ export default function Payments() {
       return response.json();
     },
   });
+
+
 
   // Get payment stats
   const { data: paidInvoices = [] } = useQuery<Invoice[]>({
@@ -46,6 +76,24 @@ export default function Payments() {
     },
   });
 
+  //Annie
+
+  const { data: paymentHistory = [] } = useQuery<Invoice[]>({
+    queryKey: ['/api/invoices', { status: 'paid' }],
+    queryFn: async () => {
+      const response = await fetch('/api/invoices?status=paid', {
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      if (!response.ok) throw new Error('Failed to fetch paid invoices');
+      return response.json();
+    },
+  });
+
+
+
   const processPaymentMutation = useMutation({
     mutationFn: async (invoiceIds: number[]) => {
       const promises = invoiceIds.map(id =>
@@ -58,7 +106,7 @@ export default function Payments() {
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/activity'] });
       setSelectedInvoices(new Set());
-      
+
       toast({
         title: "Success",
         description: "Payment(s) processed successfully",
@@ -104,9 +152,65 @@ export default function Payments() {
     processPaymentMutation.mutate(Array.from(selectedInvoices));
   };
 
-  const handleSinglePayment = (invoiceId: number) => {
-    processPaymentMutation.mutate([invoiceId]);
+
+  const handleSinglePayment = async (invoiceId: number) => {
+    const invoice = paymentQueue.find(inv => inv.id === invoiceId);
+    if (!invoice) return;
+    console.log("1");
+    const razorpayOptions = {
+      key: "Pls_put_your_own_key_this_is_just_demo",
+      amount: parseFloat(invoice.totalAmount) * 100, // Razorpay uses paise
+      currency: 'INR',
+      name: invoice.vendorName,
+      description: `Payment for Invoice ${invoice.invoiceNumber}`,
+      order_id: undefined, // You'd need to create this server-side
+      handler: async function (response: any) {
+        // Mark invoice as paid
+        // processPaymentMutation.mutate([invoiceId]);
+        //Annie -start
+        try {
+          const razorpayPaymentId = response.razorpay_payment_id;
+          const paymentTime = new Date().toISOString();
+          await apiRequest("POST", "/api/payments", {
+            invoiceId: invoice.id,
+            amount: invoice.totalAmount,
+            paymentDate: new Date().toISOString(),
+          });
+
+          // Optionally also mark invoice as paid
+          processPaymentMutation.mutate([invoiceId]);
+          queryClient.invalidateQueries({ queryKey: ['/api/invoices'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/dashboard/activity'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/payments'] }); // Refresh payment history
+
+        } catch (err) {
+          console.error("Payment save failed:", err);
+          toast({
+            title: "Error",
+            description: "Payment completed but not recorded",
+            variant: "destructive",
+          });
+        }
+        //Annie -end 
+      },
+      prefill: {
+        name: invoice.vendorName,
+        email: invoice.vendorEmail || "vendor@example.com",
+        contact: invoice.vendorPhone || "9000090000",
+      },
+      notes: {
+        invoice_id: invoice.invoiceNumber,
+      },
+      theme: {
+        color: "#3399cc"
+      },
+    };
+    console.log("1");
+    const razorpay = new (window as any).Razorpay(razorpayOptions);
+    razorpay.open();
   };
+
 
   const formatCurrency = (amount: string) => {
     return new Intl.NumberFormat('en-IN', {
@@ -121,12 +225,12 @@ export default function Payments() {
 
   const getDuePriority = (dueDate: Date | string | null | undefined) => {
     if (!dueDate) return { priority: 'Low', color: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300' };
-    
+
     const due = new Date(dueDate);
     const today = new Date();
     const diffTime = due.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays < 0) {
       return { priority: 'Overdue', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' };
     } else if (diffDays <= 3) {
@@ -139,24 +243,24 @@ export default function Payments() {
   };
 
   // Calculate stats
-  const totalPending = paymentQueue.reduce((sum, invoice) => sum + parseFloat(invoice.amount), 0);
+  const totalPending = paymentQueue.reduce((sum, invoice) => sum + parseFloat(invoice.totalAmount), 0);
   const totalPaidToday = paidInvoices
     .filter(invoice => {
       const today = new Date();
       const invoiceDate = new Date(invoice.updatedAt);
       return invoiceDate.toDateString() === today.toDateString();
     })
-    .reduce((sum, invoice) => sum + parseFloat(invoice.amount), 0);
+    .reduce((sum, invoice) => sum + parseFloat(invoice.totalAmount), 0);
 
   const totalPaidThisMonth = paidInvoices
     .filter(invoice => {
       const today = new Date();
       const invoiceDate = new Date(invoice.updatedAt);
-      return invoiceDate.getMonth() === today.getMonth() && 
-             invoiceDate.getFullYear() === today.getFullYear();
+      return invoiceDate.getMonth() === today.getMonth() &&
+        invoiceDate.getFullYear() === today.getFullYear();
     })
-    .reduce((sum, invoice) => sum + parseFloat(invoice.amount), 0);
-
+    .reduce((sum, invoice) => sum + parseFloat(invoice.totalAmount), 0);
+  console.log("Payment History:", paymentHistory);
   return (
     <DashboardLayout>
       <div className="p-8 space-y-6">
@@ -169,7 +273,7 @@ export default function Payments() {
             </p>
           </div>
           {selectedInvoices.size > 0 && (
-            <Button 
+            <Button
               onClick={handleBatchApprove}
               disabled={processPaymentMutation.isPending}
               className="bg-green-600 hover:bg-green-700"
@@ -303,7 +407,7 @@ export default function Payments() {
                           </TableCell>
                           <TableCell>{invoice.vendorName}</TableCell>
                           <TableCell className="font-medium">
-                            {formatCurrency(invoice.amount)}
+                            {formatCurrency(invoice.totalAmount)}
                           </TableCell>
                           <TableCell className="text-gray-600 dark:text-gray-400">
                             {invoice.dueDate ? formatDate(invoice.dueDate) : 'No due date'}
@@ -315,7 +419,7 @@ export default function Payments() {
                           </TableCell>
                           <TableCell>
                             <div className="flex space-x-2">
-                              <Button 
+                              <Button
                                 size="sm"
                                 onClick={() => handleSinglePayment(invoice.id)}
                                 disabled={processPaymentMutation.isPending}
@@ -323,9 +427,9 @@ export default function Payments() {
                               >
                                 Pay Now
                               </Button>
-                              <Button variant="ghost" size="sm">
+                              {/* <Button variant="ghost" size="sm">
                                 <Eye className="w-4 h-4" />
-                              </Button>
+                              </Button> */}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -337,6 +441,54 @@ export default function Payments() {
             )}
           </CardContent>
         </Card>
+
+        {/* Annie */}
+
+        {/* Payment History Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Payment History ({paymentHistory.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+
+            {paymentHistory.length === 0 ? (
+              <p className="text-gray-600 dark:text-gray-400">No payments have been made yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Invoice No</TableHead>
+                      <TableHead>Vendor</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Payment Date</TableHead>
+                      <TableHead>Payment ID</TableHead>
+                    </TableRow>
+                  </TableHeader>
+
+
+
+                  <TableBody>
+                    {paymentHistory.map((invoice) => (
+                      <TableRow key={invoice.id}>
+                        <TableCell>{invoice.invoiceNumber}</TableCell>
+                        <TableCell>{invoice.vendorName || invoice.vendorId.name}</TableCell>
+                        <TableCell>{formatCurrency(invoice.totalAmount)}</TableCell>
+                        <TableCell>{formatDate(invoice.updatedAt)}</TableCell>
+                        <TableCell>PAY-{invoice.invoiceNumber}</TableCell> 
+                        {/* <TableCell>{invoice.razorpayPaymentId}</TableCell> */}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+
+
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+
       </div>
     </DashboardLayout>
   );

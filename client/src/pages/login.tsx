@@ -20,7 +20,7 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email || !password || !role) {
+    if (!email || !password) {
       toast({
         title: "Error",
         description: "Please fill in all fields",
@@ -32,7 +32,7 @@ export default function Login() {
     setIsLoading(true);
     
     try {
-      await login({ email, password, role });
+      await login({ email, password});
       toast({
         title: "Success",
         description: "Logged in successfully",
@@ -83,7 +83,7 @@ export default function Login() {
               />
             </div>
             
-            <div className="space-y-2">
+            {/* <div className="space-y-2">
               <Label htmlFor="role">Role</Label>
               <Select value={role} onValueChange={setRole} required>
                 <SelectTrigger>
@@ -95,7 +95,7 @@ export default function Login() {
                   <SelectItem value="bookkeeper">Bookkeeper</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </div> */}
             
             <Button 
               type="submit" 

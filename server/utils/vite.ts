@@ -3,23 +3,23 @@ import fs from "fs";
 import path from "path";
 import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
-import viteConfig from "../vite.config";
+import viteConfig from "../../vite.config";
 import { nanoid } from "nanoid";
+import { fileURLToPath } from "url";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const viteLogger = createLogger();
 
-export function log(message: string, source = "express") {
-  const formattedTime = new Date().toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
 
-  console.log(`${formattedTime} [${source}] ${message}`);
+// server/utils/vite.ts
+export function log(message: string) {
+  const timestamp = new Date().toLocaleTimeString('en-US', { hour12: true });
+  console.log(`${timestamp} [express] ${message}`);
 }
 
 export async function setupVite(app: Express, server: Server) {
+  console.log("Initializing Vite...");
+  
   const serverOptions = {
     middlewareMode: true,
     hmr: { server },
@@ -39,16 +39,16 @@ export async function setupVite(app: Express, server: Server) {
     server: serverOptions,
     appType: "custom",
   });
-
+  console.log("Vite initialized successfully");
   app.use(vite.middlewares);
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
 
     try {
+      // Corrected path to client/index.html
       const clientTemplate = path.resolve(
-        import.meta.dirname,
-        "..",
-        "client",
+        __dirname,
+        "../../client", // Move up two directories to project root, then into client
         "index.html",
       );
 
@@ -66,9 +66,8 @@ export async function setupVite(app: Express, server: Server) {
     }
   });
 }
-
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(import.meta.dirname, "public");
+  const distPath = path.join(__dirname, "/public");
 
   if (!fs.existsSync(distPath)) {
     throw new Error(

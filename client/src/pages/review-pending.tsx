@@ -73,11 +73,14 @@ export default function ReviewPending() {
     });
   };
 
-  const formatCurrency = (amount: string) => {
+  const formatCurrency = (amount: string | number | undefined, totalAmount?: number) => {
+    const parsedAmount = Number(amount);
+    const fallbackAmount = Number(totalAmount) || 0;
+    const validAmount = !isNaN(parsedAmount) ? parsedAmount : fallbackAmount;
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
-    }).format(parseFloat(amount));
+    }).format(validAmount);
   };
 
   const formatDate = (date: Date | string) => {
@@ -118,7 +121,6 @@ export default function ReviewPending() {
   return (
     <DashboardLayout>
       <div className="p-8 space-y-6">
-        {/* Header */}
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Review Pending</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
@@ -167,14 +169,13 @@ export default function ReviewPending() {
                 <Card key={invoice.id}>
                   <CardContent className="p-6">
                     <div className="space-y-6">
-                      {/* Header */}
                       <div className="flex items-start justify-between">
                         <div>
                           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
                             {invoice.invoiceNumber}
                           </h3>
                           <p className="text-gray-600 dark:text-gray-400">
-                            {invoice.vendorName} - {formatCurrency(invoice.amount)}
+                            {invoice.vendorName}
                           </p>
                         </div>
                         <div className="flex items-center space-x-2">
@@ -188,7 +189,6 @@ export default function ReviewPending() {
                       </div>
 
                       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        {/* OCR Results */}
                         <Card className="bg-gray-50 dark:bg-gray-800">
                           <CardHeader className="pb-3">
                             <CardTitle className="text-base">OCR Extracted Data</CardTitle>
@@ -202,7 +202,7 @@ export default function ReviewPending() {
                                 </div>
                                 <div className="flex justify-between text-sm">
                                   <span className="text-gray-600 dark:text-gray-400">Amount:</span>
-                                  <span className="font-medium">{formatCurrency(invoice.ocrData.amount)}</span>
+                                  <span className="font-medium">{formatCurrency(invoice.ocrData.amount, invoice.totalAmount)}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
                                   <span className="text-gray-600 dark:text-gray-400">Date:</span>
@@ -210,12 +210,12 @@ export default function ReviewPending() {
                                 </div>
                                 <div className="flex justify-between text-sm">
                                   <span className="text-gray-600 dark:text-gray-400">Vendor:</span>
-                                  <span className="font-medium">{invoice.ocrData.vendorName}</span>
+                                  <span className="font-medium">{invoice.ocrData.vendorId?.name || invoice.vendorName}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
-                                  <span className="text-gray-600 dark:text-gray-400">Confidence:</span>
-                                  <span className={`font-medium ${getMatchConfidenceColor(invoice.ocrData.confidence)}`}>
-                                    {Math.round(invoice.ocrData.confidence * 100)}%
+                                  <span className="text-gray-600 dark:text-gray-400">Matching Results:</span>
+                                  <span className={`font-medium ${getMatchConfidenceColor(invoice.matchingResults?.overallScore || 0)}`}>
+                                    {Math.round((invoice.matchingResults?.overallScore || 0) * 100)}%
                                   </span>
                                 </div>
                               </>
@@ -225,7 +225,6 @@ export default function ReviewPending() {
                           </CardContent>
                         </Card>
 
-                        {/* Matching Results */}
                         <Card className="bg-gray-50 dark:bg-gray-800">
                           <CardHeader className="pb-3">
                             <CardTitle className="text-base">Matching Status</CardTitle>
@@ -286,7 +285,6 @@ export default function ReviewPending() {
                           </CardContent>
                         </Card>
 
-                        {/* Actions */}
                         <Card className="bg-gray-50 dark:bg-gray-800">
                           <CardHeader className="pb-3">
                             <CardTitle className="text-base">Review Actions</CardTitle>
@@ -324,7 +322,7 @@ export default function ReviewPending() {
                                 disabled={updateInvoiceMutation.isPending}
                               >
                                 <Check className="w-4 h-4 mr-2" />
-                                Approve
+                                <b>APPROVE</b>
                               </Button>
                               <Button 
                                 variant="destructive"
@@ -333,7 +331,7 @@ export default function ReviewPending() {
                                 disabled={updateInvoiceMutation.isPending}
                               >
                                 <X className="w-4 h-4 mr-2" />
-                                Reject
+                                <b>REJECT</b>
                               </Button>
                             </div>
                           </CardContent>

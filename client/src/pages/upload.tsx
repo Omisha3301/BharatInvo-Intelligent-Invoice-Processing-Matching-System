@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileUpload, UploadProgress } from "@/components/ui/file-upload";
@@ -21,9 +21,18 @@ export default function Upload() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Get recent uploads
-  const { data: recentInvoices = [], isLoading } = useQuery({
+  const { data: recentInvoices = [], isLoading, error } = useQuery({
     queryKey: ['/api/invoices'],
+    queryFn: async () => {
+      const response = await fetch('/api/invoices', {
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      if (!response.ok) throw new Error('Failed to fetch invoices');
+      return response.json();
+    },
     select: (data: any[]) => data.slice(0, 10).sort((a, b) => 
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     ),
@@ -57,7 +66,6 @@ export default function Upload() {
   });
 
   const handleFilesSelected = async (files: File[]) => {
-    // Add files to upload queue
     const newUploadFiles = files.map(file => ({
       name: file.name,
       progress: 0,
@@ -66,13 +74,11 @@ export default function Upload() {
     
     setUploadFiles(prev => [...prev, ...newUploadFiles]);
 
-    // Upload files one by one
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const fileIndex = uploadFiles.length + i;
       
       try {
-        // Simulate progress
         const progressInterval = setInterval(() => {
           setUploadFiles(prev => prev.map((f, index) => 
             index === fileIndex 
@@ -85,14 +91,12 @@ export default function Upload() {
         
         clearInterval(progressInterval);
         
-        // Complete upload
         setUploadFiles(prev => prev.map((f, index) => 
           index === fileIndex 
             ? { ...f, progress: 100, status: 'Completed' }
             : f
         ));
         
-        // Remove from queue after 3 seconds
         setTimeout(() => {
           setUploadFiles(prev => prev.filter((_, index) => index !== fileIndex));
         }, 3000);
@@ -112,11 +116,23 @@ export default function Upload() {
   };
 
   const getOCRStatusColor = (ocrData: any) => {
-    if (!ocrData) return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
+    if (!ocrData) return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
     
     if (ocrData.confidence >= 0.9) {
       return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
     } else if (ocrData.confidence >= 0.7) {
+      return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
+    } else {
+      return 'bg-blue-100 text-red-800 dark:bg-blue-900 dark:text-blue-300';
+    }
+  };
+
+  const getMatchingScoreColor = (score: number | undefined) => {
+    if (!score) return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
+    
+    if (score >= 0.9) {
+      return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
+    } else if (score >= 0.7) {
       return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
     } else {
       return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
@@ -154,7 +170,6 @@ export default function Upload() {
   return (
     <DashboardLayout>
       <div className="p-8 space-y-6">
-        {/* Header */}
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Upload Invoices</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
@@ -162,7 +177,6 @@ export default function Upload() {
           </p>
         </div>
 
-        {/* File Upload */}
         <FileUpload 
           onFilesSelected={handleFilesSelected}
           accept=".pdf,.jpg,.jpeg,.png"
@@ -170,7 +184,6 @@ export default function Upload() {
           maxSize={10}
         />
 
-        {/* Upload Progress */}
         {uploadFiles.length > 0 && (
           <UploadProgress 
             files={uploadFiles}
@@ -178,7 +191,6 @@ export default function Upload() {
           />
         )}
 
-        {/* Recent Uploads */}
         <Card>
           <CardHeader>
             <CardTitle>Recent Uploads</CardTitle>
@@ -191,10 +203,16 @@ export default function Upload() {
                     <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
                     <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/6"></div>
                     <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/6"></div>
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/6"></div>
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/6"></div>
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/6">
+</div>
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/6">
+</div>
                   </div>
                 ))}
+              </div>
+            ) : error ? (
+              <div className="text-center py-8 text-red-500 dark:text-red-400">
+                Error fetching recent uploads: {error.message}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -203,9 +221,8 @@ export default function Upload() {
                     <TableRow>
                       <TableHead>File Name</TableHead>
                       <TableHead>Upload Time</TableHead>
-                      <TableHead>OCR Status</TableHead>
+                      <TableHead>Match Results</TableHead>
                       <TableHead>Matching Status</TableHead>
-                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -218,9 +235,9 @@ export default function Upload() {
                           {formatTimeAgo(invoice.createdAt)}
                         </TableCell>
                         <TableCell>
-                          <Badge className={getOCRStatusColor(invoice.ocrData)}>
-                            {invoice.ocrData ? 
-                              `Completed (${Math.round(invoice.ocrData.confidence * 100)}%)` : 
+                          <Badge className={getMatchingScoreColor(invoice.matchingResults?.overallScore)}>
+                            {invoice.matchingResults ? 
+                              `Completed (${Math.round(invoice.matchingResults.overallScore * 100)}%)` : 
                               'Pending'
                             }
                           </Badge>
@@ -232,16 +249,6 @@ export default function Upload() {
                               'Processing'
                             }
                           </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex space-x-2">
-                            <Button variant="ghost" size="sm">
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm">
-                              <Download className="w-4 h-4" />
-                            </Button>
-                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

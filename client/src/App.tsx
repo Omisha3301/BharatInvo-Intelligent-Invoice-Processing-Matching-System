@@ -1,3 +1,4 @@
+// C:\Users\Yashu\og with small prob\client\src\App.tsx
 import { Switch, Route, Redirect } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
@@ -16,6 +17,7 @@ import Payments from "@/pages/payments";
 import UserManagement from "@/pages/user-management";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
+import PurchaseAndDeliveries from "@/pages/purchase-deliveries";
 
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
   const { isAuthenticated, user, isLoading } = useAuth();
@@ -119,6 +121,12 @@ function Router() {
       <Route path="/settings">
         <ProtectedRoute>
           <Settings />
+        </ProtectedRoute>
+      </Route>
+
+      <Route path="/purchase-deliveries">
+        <ProtectedRoute allowedRoles={["admin"]}>
+          <PurchaseAndDeliveries />
         </ProtectedRoute>
       </Route>
 

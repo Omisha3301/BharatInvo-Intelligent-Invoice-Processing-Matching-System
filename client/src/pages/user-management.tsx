@@ -21,6 +21,7 @@ export default function UserManagement() {
   const [newUser, setNewUser] = useState({
     name: "",
     email: "",
+    password: "",
     role: "",
     department: "",
   });
@@ -49,7 +50,7 @@ export default function UserManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/users'] });
       setIsAddUserOpen(false);
-      setNewUser({ name: "", email: "", role: "", department: "" });
+      setNewUser({ name: "", email: "", password: "", role: "", department: "" });
       
       toast({
         title: "Success",
@@ -65,33 +66,32 @@ export default function UserManagement() {
     },
   });
 
-  const updateUserMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: number; updates: Partial<User> }) => {
-      const response = await apiRequest('PATCH', `/api/users/${id}`, updates);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
-      setEditingUser(null);
-      
-      toast({
-        title: "Success",
-        description: "User updated successfully",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update user",
-        variant: "destructive",
-      });
-    },
-  });
+const updateUserMutation = useMutation({
+  mutationFn: async ({ id, updates }: { id: string; updates: Partial<User> }) => {
+    const response = await apiRequest('PATCH', `/api/users/${id}`, updates);
+    return response.json();
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+    setEditingUser(null);
+    toast({
+      title: "Success",
+      description: "User updated successfully",
+    });
+  },
+  onError: (error: any) => {
+    toast({
+      title: "Error",
+      description: error.message || "Failed to update user",
+      variant: "destructive",
+    });
+  },
+});
 
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newUser.name || !newUser.email || !newUser.role) {
+    if (!newUser.name || !newUser.email || !newUser.role || !newUser.password) {
       toast({
         title: "Validation Error",
         description: "Please fill in all required fields",
@@ -102,20 +102,26 @@ export default function UserManagement() {
 
     createUserMutation.mutate({
       ...newUser,
-      password: "bharatinvo123", // Default password
+   
     });
   };
 
   const handleUpdateUser = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!editingUser) return;
+  e.preventDefault();
+  
+  if (!editingUser) return;
 
-    updateUserMutation.mutate({
-      id: editingUser.id,
-      updates: editingUser,
-    });
-  };
+  updateUserMutation.mutate({
+    id: editingUser.id,
+    updates: {
+      name: editingUser.name,
+      email: editingUser.email,
+      role: editingUser.role,
+      department: editingUser.department || undefined, // Handle optional field
+      isActive: editingUser.isActive,
+    },
+  });
+};
 
   const handleToggleUserStatus = (user: User) => {
     updateUserMutation.mutate({
@@ -214,6 +220,17 @@ export default function UserManagement() {
                     value={newUser.email}
                     onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
                     placeholder="Enter email address"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    value={newUser.password}
+                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                    placeholder="Set password"
                     required
                   />
                 </div>
@@ -478,14 +495,14 @@ export default function UserManagement() {
                               <Pause className="w-4 h-4" />
                             </Button>
                             
-                            <Button 
+                            {/* <Button 
                               variant="ghost" 
                               size="sm" 
                               className="text-red-500 hover:text-red-700"
                               disabled
                             >
                               <Trash2 className="w-4 h-4" />
-                            </Button>
+                            </Button> */}
                           </div>
                         </TableCell>
                       </TableRow>

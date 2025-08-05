@@ -265,7 +265,7 @@ export default function ReviewHistory() {
                       <TableHead>Status</TableHead>
                       <TableHead>Reviewed By</TableHead>
                       <TableHead>Review Date</TableHead>
-                      <TableHead>Actions</TableHead>
+                      {/* <TableHead>Actions</TableHead> */}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -275,7 +275,7 @@ export default function ReviewHistory() {
                           {invoice.invoiceNumber}
                         </TableCell>
                         <TableCell>{invoice.vendorName}</TableCell>
-                        <TableCell>{formatCurrency(invoice.amount)}</TableCell>
+                        <TableCell>{formatCurrency(invoice.totalAmount)}</TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-2">
                             <div className={`w-3 h-3 rounded-full ${getSourceColor(invoice.source)}`}></div>
@@ -293,7 +293,7 @@ export default function ReviewHistory() {
                         <TableCell className="text-sm text-gray-600 dark:text-gray-400">
                           {formatDateTime(invoice.updatedAt)}
                         </TableCell>
-                        <TableCell>
+                        {/* <TableCell>
                           <div className="flex space-x-2">
                             <Button variant="ghost" size="sm">
                               <Eye className="w-4 h-4" />
@@ -304,7 +304,7 @@ export default function ReviewHistory() {
                               </Button>
                             )}
                           </div>
-                        </TableCell>
+                        </TableCell> */}
                       </TableRow>
                     ))}
                   </TableBody>
